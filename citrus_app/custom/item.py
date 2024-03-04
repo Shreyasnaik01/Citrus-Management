@@ -2,9 +2,6 @@ import frappe
 from frappe.utils.background_jobs import enqueue
 from frappe import msgprint, _
 
-import frappe
-from frappe.utils import now_datetime
-
 @frappe.whitelist()
 def send_email(item_code):
     # Fetch the latest 5 sales invoices for the specified item code
@@ -22,47 +19,43 @@ def send_email(item_code):
     )
 
     if invoices:
-        email_template = frappe.get_doc("Email Template","Sales Invoice Template")
+        email_template = frappe.get_doc("Email Template", "Sales Invoice Template")
 
         # Create a list to store attachment details
         attachments = []
 
-        # Get the attachment for each invoice
+        # Create the email message
+        message = email_template.response
+        subject = "Sales Invoices"
+        recipient = frappe.session.user
+
+        # Iterate through each invoice and add its details to the email
         for inv in invoices:
             si_doc = frappe.get_doc("Sales Invoice", inv["name"])
 
-            email_content = email_template.response.replace("{{ invoice_name }}", si_doc.name)
+            # Customize the email content for each invoice
+            email_content = message.replace("{{ invoice_name }}", si_doc.name)
             email_content = email_content.replace("{{ invoice_date }}", str(si_doc.posting_date))
-            
 
+            current_attachments = []
 
-            # Create the email message
-            message = email_content
-            subject = "Sales Invoices"
-            recipient = frappe.session.user
             attachment = frappe.attach_print(
-                "Sales Invoice", si_doc.name, file_name = si_doc.name
+                "Sales Invoice", si_doc.name, file_name=si_doc.name
             )
-            attachments.append(attachment)
-            
-            # Send the email with attachments
+            current_attachments.append(attachment)
+
+            # Send the email with the correct template and attachment for the current invoice
             frappe.sendmail(
                 recipients=[recipient],
-                message=message,
+                message=email_content,
                 subject=subject,
-                attachments=attachments,
+                attachments=current_attachments,
             )
 
+    
+            attachments.extend(current_attachments)
+
             frappe.msgprint(_("Email sent successfully"))
+
     else:
         frappe.msgprint(_("No invoices found for the given item"))
-
-
-
-
-    
-
-
-   
-
-   
